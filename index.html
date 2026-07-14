@@ -132,42 +132,76 @@
 
     <script>
         let devicePort = null;
+        let reader = null;
+        let keepReading = true;
 
-        // Skutečné volání WebUSB / WebSerial pro propojení s fyzickým mikrokontrolérem / FPGA
+        // Inicializace USB/Serial připojení k fyzickému hardwaru
         async function connectHardware() {
             logToTerminal("[CONNECT] Inicializuji vyhledávání kompatibilních USB/Serial zařízení přes Web API...");
             try {
                 if ('serial' in navigator) {
+                    // Požádá uživatele o povolení portu
                     devicePort = await navigator.serial.requestPort();
-                    await devicePort.open({ baudRate: 115200 });
+                    const currentBaud = parseInt(document.getElementById('busSpeed').value) || 115200;
+                    
+                    // Otevření portu s nakonfigurovanou rychlostí
+                    await devicePort.open({ baudRate: currentBaud });
                     
                     document.getElementById('hwStatus').innerText = "ONLINE — COPROCESSOR SYNCED [FPGA + SDR READY]";
                     document.getElementById('hwStatus').className = "text-[9px] text-emerald-400 font-bold mt-0.5";
-                    logToTerminal("[SUCCESS] Fyzický hardware úspěšně připojen. Sběrnice synchronizována na 115200 bps.");
+                    logToTerminal(`[SUCCESS] Fyzický hardware úspěšně připojen. Sběrnice synchronizována na ${currentBaud} bps.`);
+                    
+                    keepReading = true;
                     listenToDevice();
                 } else {
-                    logToTerminal("[ERR] Web Serial API není ve vašem prohlížeči podporováno. Použijte Chrome, Edge nebo Opera.");
+                    logToTerminal("[ERR] Web Serial API není ve vašem prohlížeči podporováno. Použijte Chrome, Edge nebo Opera na podporovaném zařízení.");
                 }
             } catch (err) {
                 logToTerminal(`[ERR] Chyba připojení hardwaru: ${err.message}`);
             }
         }
 
-        // Čtení reálných surových dat tekoucích z hardwaru
+        // Čtení dat přicházejících z USB rozhraní na pozadí
         async function listenToDevice() {
-            const reader = devicePort.readable.getReader();
-            try {
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    // Dekódování reálného bitstreamu z USB kontroléru
-                    const decoder = new TextDecoder();
-                    logToTerminal(`[RAW IN]: ${decoder.decode(value)}`);
+            if (!devicePort || !devicePort.readable) return;
+            
+            logToTerminal("[SYSTEM] Spouštím asynchronní čtení příchozích bajtů ze sběrnice...");
+            
+            while (devicePort.readable && keepReading) {
+                reader = devicePort.readable.getReader();
+                try {
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            break;
+                        }
+                        
+                        // Dekódování a výpis přijatých dat
+                        const decoder = new TextDecoder();
+                        const decodedData = decoder.decode(value);
+                        logToTerminal(`[RAW IN]: ${decodedData.trim()}`);
+                        
+                        // Pokročilá logická analýza příchozích dat
+                        parseIncomingHardwareData(decodedData);
+                    }
+                } catch (err) {
+                    logToTerminal(`[ERR] Přerušen tok dat ze sběrnice: ${err.message}`);
+                } finally {
+                    reader.releaseLock();
                 }
-            } catch (err) {
-                logToTerminal(`[ERR] Přerušen tok dat ze sběrnice: ${err.message}`);
-            } finally {
-                reader.releaseLock();
+            }
+        }
+
+        // Pomocná logická analýza vstupních dat pro automatické vyplnění polí
+        function parseIncomingHardwareData(data) {
+            // Příklad: Pokud hardware pošle "UID: 04:DE:A2:3B", automaticky ho vložíme do Proximity Matrixu
+            if (data.toUpperCase().includes("UID:")) {
+                const parts = data.split(":");
+                if (parts.length >= 2) {
+                    const extractedUid = data.substring(data.indexOf(":") + 1).trim();
+                    document.getElementById('nfcUid').value = extractedUid;
+                    logToTerminal(`[PARSER] Detekováno a zapsáno nové cílové UID čipu: ${extractedUid}`);
+                }
             }
         }
 
@@ -178,20 +212,25 @@
             term.scrollTop = term.scrollHeight;
         }
 
-        // REÁLNÉ OVLÁDACÍ FUNKCE PŘES USB/SERIAL PŘÍKAZY
-        function sendCommandToHardware(cmd) {
+        // Reálné odesílání příkazů přes USB linku
+        async function sendCommandToHardware(cmd) {
             logToTerminal(`[CMD OUT] Odesílám instrukci do FPGA/SDR jednotky: "${cmd}"`);
-            if (!devicePort) {
+            if (!devicePort || !devicePort.writable) {
                 logToTerminal("[WARNING] Není připojen reálný hardware. Příkaz byl odeslán pouze do virtuálního rozhraní.");
                 return;
             }
-            // Zde probíhá skutečný zápis bajtů do USB/Serial linky
-            const encoder = new TextEncoder();
-            const writer = devicePort.writable.getWriter();
-            writer.write(encoder.encode(cmd + "\n"));
-            writer.releaseLock();
+            try {
+                const encoder = new TextEncoder();
+                const writer = devicePort.writable.getWriter();
+                // Odeslání příkazu zakončeného novým řádkem
+                await writer.write(encoder.encode(cmd + "\n"));
+                writer.releaseLock();
+            } catch (err) {
+                logToTerminal(`[ERR] Chyba při odesílání dat do hardwaru: ${err.message}`);
+            }
         }
 
+        // SDR AKCE
         function startRfCapture() {
             const freq = document.getElementById('rfFreq').value;
             const gain = document.getElementById('rfGain').value;
@@ -205,6 +244,7 @@
             sendCommandToHardware(`SDR_SET_FREQ=${freq};MODE=TX;START_BURST`);
         }
 
+        // NFC / RFID AKCE
         function readProximityCard() {
             const type = document.getElementById('nfcType').value;
             logToTerminal(`[NFC/RFID] Aktivuji elektromagnetické pole antény. Režim čtení: ${type}...`);
@@ -218,6 +258,7 @@
             sendCommandToHardware(`NFC_MODE=EMULATE;UID=${uid};TYPE=${type}`);
         }
 
+        // BUS INSPECTOR AKCE
         function startBusAnalysis() {
             const bus = document.getElementById('busType').value;
             const speed = document.getElementById('busSpeed').value;
@@ -225,6 +266,7 @@
             sendCommandToHardware(`BUS_ANALYZE=${bus};SPEED=${speed}`);
         }
 
+        // SYSTÉMOVÉ GLOBÁLNÍ AKCE
         function emergencyHardwareWipe() {
             logToTerminal("[CRITICAL] !!! RESET !!! Spouštím okamžitý hardwarový WIPE. Mažu Secure Element flash paměť...");
             sendCommandToHardware("SYS_EMERGENCY_WIPE_ALL");
