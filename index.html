@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS OMNITOOL — Universal Edge Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #020617; color: #f1f5f9; font-family: monospace; }
+        .terminal-glow { box-shadow: 0 0 15px rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); }
+        .pulse-fast { animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="p-4 flex flex-col h-full justify-between">
+
+    <div class="bg-slate-950 p-4 rounded-xl border border-amber-500/30 terminal-glow flex justify-between items-center">
+        <div>
+            <h1 class="text-xs font-black tracking-widest text-amber-500">⚡ NEXUS OMNITOOL v1.0</h1>
+            <p class="text-[9px] text-emerald-400 mt-0.5">📟 LOKÁLNÍ COPROCESSOR: AKTIVNÍ [SDR: 100kHz-6GHz]</p>
+        </div>
+        <div class="text-right">
+            <span class="text-[9px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 font-bold" id="batDisplay">BAT: 98% [4.2V]</span>
+        </div>
+    </div>
+
+    <div class="my-4 flex-grow grid grid-cols-1 md:grid-cols-3 gap-3">
+        
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                    <span class="text-[10px] font-bold text-amber-500 uppercase">📻 SDR RF SNIFFER</span>
+                    <span class="text-[9px] text-amber-400 font-bold pulse-fast">● LIVE</span>
+                </div>
+                <div class="mt-3 space-y-1 text-[10px]">
+                    <div class="flex justify-between text-slate-400"><span>Frekvence:</span> <span class="text-white font-bold" id="rfFreq">433.920 MHz</span></div>
+                    <div class="flex justify-between text-slate-400"><span>Modulace:</span> <span class="text-amber-400">OOK / PWM</span></div>
+                    <div class="flex justify-between text-slate-400"><span>Síla signálu:</span> <span class="text-emerald-400" id="rfRssi">-64 dBm</span></div>
+                </div>
+                <div class="mt-4 bg-black h-16 rounded border border-slate-900 relative overflow-hidden flex items-end p-1 gap-0.5">
+                    <div class="bg-amber-500/40 w-full" style="height: 30%"></div>
+                    <div class="bg-amber-500/40 w-full" style="height: 45%"></div>
+                    <div class="bg-amber-500 w-full" style="height: 90%"></div>
+                    <div class="bg-amber-500/40 w-full" style="height: 60%"></div>
+                    <div class="bg-amber-500/20 w-full" style="height: 20%"></div>
+                </div>
+            </div>
+            <button onclick="triggerAction('RF_RX')" class="mt-3 w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded py-1.5 text-[10px] font-bold uppercase tracking-wider">Zachytit sub-GHz signál</button>
+        </div>
+
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                    <span class="text-[10px] font-bold text-cyan-400 uppercase">🪪 NFC & RFID MATRIX</span>
+                    <span class="text-[9px] text-slate-500">IDLE</span>
+                </div>
+                <div class="mt-3 space-y-1 text-[10px]">
+                    <div class="flex justify-between text-slate-400"><span>Standard:</span> <span class="text-white font-bold" id="nfcType">ISO 14443-A</span></div>
+                    <div class="flex justify-between text-slate-400"><span>UID Čipu:</span> <span class="text-cyan-400 font-mono" id="nfcUid">53:0A:BC:2F</span></div>
+                    <div class="flex justify-between text-slate-400"><span>Paměť:</span> <span class="text-slate-300">Mifare Classic 1K</span></div>
+                </div>
+                <div class="mt-4 p-2 bg-cyan-950/20 border border-cyan-500/20 rounded text-[9px] text-cyan-300 font-mono text-center">
+                    [ BANKA KLÍČŮ: 42 EMULACÍ ULOŽENO ]
+                </div>
+            </div>
+            <button onclick="triggerAction('NFC_EMU')" class="mt-3 w-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded py-1.5 text-[10px] font-bold uppercase tracking-wider">Spustit emulaci karty</button>
+        </div>
+
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                    <span class="text-[10px] font-bold text-purple-400 uppercase">🔌 GPIO & BUS INSPECTOR</span>
+                    <span class="text-[9px] text-purple-400 font-bold">UART ACTIVE</span>
+                </div>
+                <div class="mt-3 grid grid-cols-4 gap-1 text-center text-[9px]">
+                    <div class="bg-emerald-500/20 border border-emerald-500/40 rounded p-1 text-emerald-400 font-bold">1: TX</div>
+                    <div class="bg-purple-500/20 border border-purple-500/40 rounded p-1 text-purple-400 font-bold">2: RX</div>
+                    <div class="bg-slate-900 border border-slate-800 rounded p-1 text-slate-500">3: CLK</div>
+                    <div class="bg-slate-900 border border-slate-800 rounded p-1 text-slate-500">4: GND</div>
+                </div>
+                <div class="mt-4 space-y-1 text-[10px]">
+                    <div class="flex justify-between text-slate-400"><span>Detekovaný Bus:</span> <span class="text-purple-300 font-bold">Serial Console</span></div>
+                    <div class="flex justify-between text-slate-400"><span>Baudrate:</span> <span class="text-white">115200 bps</span></div>
+                </div>
+            </div>
+            <button onclick="triggerAction('GPIO_SCAN')" class="mt-3 w-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded py-1.5 text-[10px] font-bold uppercase tracking-wider">Skenovat Sběrnici</button>
+        </div>
+
+    </div>
+
+    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 terminal-glow mb-4">
+        <span class="text-[9px] uppercase font-bold text-amber-500 block tracking-widest">🧠 INTEGRATE LOKÁLNÍ AI KOPROCESOR</span>
+        <div id="aiConsole" class="text-xs text-slate-300 italic mt-2 font-mono min-h-[40px] border-l-2 border-amber-500/50 pl-2 flex items-center">
+            "Skenuji bezdrátové prostředí... Čekám na příkaz k analýze."
+        </div>
+    </div>
+
+    <div class="bg-slate-950 p-3 rounded-xl border border-slate-900 grid grid-cols-2 gap-2">
+        <button onclick="executeGlobalMacro('PANIC')" class="bg-rose-950/40 hover:bg-rose-950/60 text-rose-400 border border-rose-500/30 font-bold py-3 rounded-xl text-xs uppercase tracking-wider">
+            🚨 PANIC MODE (WIPE)
+        </button>
+        <button onclick="executeGlobalMacro('AUTO_SCAN')" class="bg-gradient-to-r from-amber-600 to-amber-700 text-slate-950 font-black py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/10">
+            🔍 EXTRÉMNÍ HLOUBKOVÝ SKEN
+        </button>
+    </div>
+
+    <script>
+        // Simulace živých dat z hardwaru
+        setInterval(() => {
+            if (Math.random() > 0.4) {
+                // Náhodná drobná změna frekvence nebo RSSI pro živý efekt
+                const rssi = -50 - Math.floor(Math.random() * 25);
+                document.getElementById('rfRssi').innerText = `${rssi} dBm`;
+            }
+        }, 1500);
+
+        function triggerAction(action) {
+            const consoleBox = document.getElementById('aiConsole');
+            if (action === 'RF_RX') {
+                consoleBox.innerHTML = "<span class='text-amber-400 font-bold'>[AI DEKODÉR]:</span> Zachycen signál na 433.92 MHz. Detekován plovoucí kód (Rolling Code) systému Keeloq. Ukládám vzorek do dešifrovací fronty...";
+            } else if (action === 'NFC_EMU') {
+                consoleBox.innerHTML = "<span class='text-cyan-400 font-bold'>[NFC EMULATOR]:</span> Hardwarové cívky aktivovány. Emuluji UID [53:0A:BC:2F] na frekvenci 13.56 MHz. Pole je aktivní, přibližte k terminálu.";
+            } else if (action === 'GPIO_SCAN') {
+                consoleBox.innerHTML = "<span class='text-purple-400 font-bold'>[BUS ANALÝZA]:</span> Na pinech 1 a 2 detekován nezašifrovaný logovací proud Linux kernelu. Možnost poslat root příkazy přes vestavěnou konzoli.";
+            }
+        }
+
+        function executeGlobalMacro(type) {
+            const consoleBox = document.getElementById('aiConsole');
+            if (type === 'PANIC') {
+                consoleBox.innerHTML = "<span class='text-rose-500 font-bold'>[HARDWARE WIPE]:</span> Všechny šifrovací klíče, uložené karty a logy ze spektra byly okamžitě vymazány z bezpečné paměti (Secure Element).";
+            } else if (type === 'AUTO_SCAN') {
+                consoleBox.innerHTML = "<span class='text-emerald-400 font-bold'>[FULL SPECTRUM SCAN]:</span> Spuštěn kompletní audit. Detekovány 3 Wi-Fi sítě (WPA3), 1x chytrý elektroměr na 868 MHz a jedno nízkoenergetické Bluetooth (BLE) pojítko.";
+            }
+        }
+    </script>
+</body>
+</html>
